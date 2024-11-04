@@ -1,29 +1,27 @@
 /* General body styling */
 body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
     margin: 0;
-    background-color: #111;
     font-family: Arial, sans-serif;
+    background-color: #111;
     color: #fff;
 }
 
-/* Center container */
-#container {
+/* Hero section styling */
+#hero {
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
-    width: 80%;
+    height: 100vh;
+    position: relative;
 }
 
 /* Glowing text styling */
 .glow-text {
-    font-size: 2.5em;
+    font-size: 3em;
     color: #1e90ff;
     text-align: center;
-    margin-bottom: 20px;
+    margin: 20px 0;
     text-shadow: 0 0 10px #1e90ff, 0 0 20px #1e90ff, 0 0 30px #1e90ff;
     animation: glow 1.5s ease-in-out infinite alternate;
 }
@@ -44,6 +42,41 @@ body {
     max-width: 800px;
     width: 100%;
     height: 400px;
+}
+
+/* Features section styling */
+#features {
+    padding: 50px 20px;
+    text-align: center;
+}
+
+#features h2 {
+    margin-bottom: 20px;
+}
+
+/* Projects section styling */
+#projects {
+    padding: 50px 20px;
+    text-align: center;
+}
+
+.project-card {
+    background-color: #333;
+    border: 1px solid #444;
+    padding: 20px;
+    margin: 10px;
+    border-radius: 8px;
+}
+
+.project-card h3 {
+    margin: 0 0 10px;
+}
+
+/* Footer section styling */
+footer {
+    text-align: center;
+    padding: 20px;
+    background-color: #222;
 }
 
 /* FPS counter styling */
