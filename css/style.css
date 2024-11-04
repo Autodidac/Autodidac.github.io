@@ -1,0 +1,54 @@
+/* General body styling */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #111;
+    font-family: Arial, sans-serif;
+    color: #fff;
+}
+
+/* Center container */
+#container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 80%;
+}
+
+/* Glowing text styling */
+.glow-text {
+    font-size: 2.5em;
+    color: #1e90ff;
+    text-align: center;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #1e90ff, 0 0 20px #1e90ff, 0 0 30px #1e90ff;
+    animation: glow 1.5s ease-in-out infinite alternate;
+}
+
+@keyframes glow {
+    from {
+        text-shadow: 0 0 10px #1e90ff, 0 0 20px #1e90ff, 0 0 30px #1e90ff;
+    }
+    to {
+        text-shadow: 0 0 20px #1e90ff, 0 0 30px #1e90ff, 0 0 40px #1e90ff;
+    }
+}
+
+/* Canvas styling */
+#engine-canvas {
+    border: 2px solid #444;
+    background-color: #222;
+    max-width: 800px;
+    width: 100%;
+    height: 400px;
+}
+
+/* FPS counter styling */
+#fps-container {
+    margin-top: 10px;
+    font-size: 1.2em;
+    color: #90ee90;
+}
