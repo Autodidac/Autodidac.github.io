@@ -38,6 +38,11 @@ function draw() {
     ctx.fillStyle = gradient;
     ctx.fill();
 
+    // Draw almond border
+    ctx.lineWidth = 2; // Border width
+    ctx.strokeStyle = '#1e90ff'; // Border color
+    ctx.stroke();
+
     ctx.restore();
 
     // Increment rotation angle for animation
