@@ -47,14 +47,3 @@ function draw() {
 
 // Initialize and start the animation
 draw();
-
-// FPS Counter
-let lastTimestamp = 0;
-function calculateFPS(timestamp) {
-    const delta = timestamp - lastTimestamp;
-    const fps = (1000 / delta).toFixed(1);
-    document.getElementById('fps').textContent = fps;
-    lastTimestamp = timestamp;
-    requestAnimationFrame(calculateFPS);
-}
-calculateFPS();
