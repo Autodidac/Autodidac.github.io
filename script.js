@@ -15,12 +15,19 @@ let angle = 0;
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // Draw a rotating square to demonstrate animation
+    // Draw a rotating almond shape
     ctx.save();
-    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.translate(canvas.width / 2, canvas.height / 2); // Center of canvas
     ctx.rotate(angle);
+    
+    // Almond shape properties
+    const almondWidth = 100;   // Width of the almond
+    const almondHeight = 50;   // Height of the almond
+    
+    ctx.beginPath();
+    ctx.ellipse(0, 0, almondWidth, almondHeight, 0, Math.PI / 4, Math.PI + Math.PI / 4, false);  // Skewed to form almond shape
     ctx.fillStyle = '#1e90ff';
-    ctx.fillRect(-50, -50, 100, 100);
+    ctx.fill();
     ctx.restore();
     
     angle += 0.02;  // Increase angle for rotation
@@ -40,9 +47,3 @@ function calculateFPS(timestamp) {
     requestAnimationFrame(calculateFPS);
 }
 calculateFPS();
-
-// Loading Animation for Hero Text
-document.addEventListener('DOMContentLoaded', () => {
-    const heroText = document.querySelector('#hero h1');
-    heroText.classList.add('loading');
-});
