@@ -1,31 +1,130 @@
-/* General body styling */
-body {
+/* Basic Reset */
+* {
     margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #111;
-    color: #fff;
+    padding: 0;
+    box-sizing: border-box;
 }
 
-/* Hero section styling */
-#hero {
+body {
+    font-family: Arial, sans-serif;
+    color: #d3d3d3;
+    background-color: #1c1c1c;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
-    height: 100vh;
-    position: relative;
+    justify-content: center;
+    min-height: 100vh;
 }
 
-/* Glowing text styling */
-.glow-text {
-    font-size: 3em;
-    color: #1e90ff;
+/* Center and style the hero section */
+#hero {
     text-align: center;
-    margin: 20px 0;
-    text-shadow: 0 0 10px #1e90ff, 0 0 20px #1e90ff, 0 0 30px #1e90ff;
-    animation: glow 1.5s ease-in-out infinite alternate;
+    padding: 2rem;
+    color: #f5f5f5;
 }
 
+#hero h1 {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    animation: glow 2s ease-in-out infinite alternate;
+}
+
+#hero p {
+    font-size: 1.2rem;
+    color: #aaa;
+    margin-bottom: 2rem;
+}
+
+/* Canvas for Interactive Display */
+#engine-canvas {
+    width: 100%;
+    max-width: 800px;
+    height: 400px;
+    background-color: #222;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+/* Features Section */
+#features {
+    text-align: center;
+    margin: 3rem 0;
+}
+
+#features h2 {
+    font-size: 2rem;
+    color: #f5f5f5;
+    margin-bottom: 1rem;
+}
+
+#features ul {
+    list-style: none;
+    padding: 0;
+}
+
+#features li {
+    font-size: 1.1rem;
+    color: #d3d3d3;
+    padding: 0.5rem 0;
+}
+
+/* Projects Section */
+#projects {
+    text-align: center;
+    margin: 3rem 0;
+}
+
+.project-card {
+    background-color: #333;
+    border-radius: 8px;
+    padding: 1rem;
+    max-width: 400px;
+    margin: 1rem auto;
+    transition: transform 0.3s;
+}
+
+.project-card:hover {
+    transform: scale(1.05);
+}
+
+.project-card h3 {
+    font-size: 1.5rem;
+    color: #f5f5f5;
+    margin-bottom: 0.5rem;
+}
+
+.project-card p {
+    color: #aaa;
+    margin-bottom: 1rem;
+}
+
+.project-card a {
+    color: #1e90ff;
+    text-decoration: none;
+}
+
+.project-card a:hover {
+    text-decoration: underline;
+}
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 1rem 0;
+    color: #aaa;
+    font-size: 0.9rem;
+}
+
+footer a {
+    color: #1e90ff;
+    text-decoration: none;
+}
+
+footer a:hover {
+    text-decoration: underline;
+}
+
+/* Glow Animation */
 @keyframes glow {
     from {
         text-shadow: 0 0 10px #1e90ff, 0 0 20px #1e90ff, 0 0 30px #1e90ff;
@@ -33,55 +132,4 @@ body {
     to {
         text-shadow: 0 0 20px #1e90ff, 0 0 30px #1e90ff, 0 0 40px #1e90ff;
     }
-}
-
-/* Canvas styling */
-#engine-canvas {
-    border: 2px solid #444;
-    background-color: #222;
-    max-width: 800px;
-    width: 100%;
-    height: 400px;
-}
-
-/* Features section styling */
-#features {
-    padding: 50px 20px;
-    text-align: center;
-}
-
-#features h2 {
-    margin-bottom: 20px;
-}
-
-/* Projects section styling */
-#projects {
-    padding: 50px 20px;
-    text-align: center;
-}
-
-.project-card {
-    background-color: #333;
-    border: 1px solid #444;
-    padding: 20px;
-    margin: 10px;
-    border-radius: 8px;
-}
-
-.project-card h3 {
-    margin: 0 0 10px;
-}
-
-/* Footer section styling */
-footer {
-    text-align: center;
-    padding: 20px;
-    background-color: #222;
-}
-
-/* FPS counter styling */
-#fps-container {
-    margin-top: 10px;
-    font-size: 1.2em;
-    color: #90ee90;
 }
