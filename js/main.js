@@ -2,7 +2,7 @@
 const canvas = document.getElementById('engine-canvas');
 const ctx = canvas.getContext('2d');
 
-// Resize canvas to fit container width
+// Resize canvas to fit the section
 function resizeCanvas() {
     canvas.width = canvas.clientWidth;
     canvas.height = canvas.clientHeight;
@@ -24,7 +24,7 @@ function draw() {
     const almondWidth = 100;
     const almondHeight = 40;
 
-    // Almond gradient
+    // Create a gradient for the almond shape
     const gradient = ctx.createLinearGradient(-almondWidth / 2, 0, almondWidth / 2, 0);
     gradient.addColorStop(0, '#8B4513');     // Dark brown
     gradient.addColorStop(0.5, '#D2691E');   // Lighter brown
@@ -48,7 +48,7 @@ function draw() {
 // Initialize and start the animation
 draw();
 
-// FPS Counter (optional)
+// FPS Counter
 let lastTimestamp = 0;
 function calculateFPS(timestamp) {
     const delta = timestamp - lastTimestamp;
