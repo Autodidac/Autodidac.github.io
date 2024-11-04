@@ -38,7 +38,7 @@ body {
 /* Canvas for Interactive Display */
 #engine-canvas {
     width: 100%;
-    max-width: 400px;
+    max-width: 200px;
     height: 200px;
     background-color: #222;
     border-radius: 50%; /* Create a circular canvas */
