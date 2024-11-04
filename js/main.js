@@ -21,8 +21,8 @@ function draw() {
     ctx.rotate(angle);
 
     // Almond shape properties
-    const almondWidth = 100;
-    const almondHeight = 40;
+    const almondWidth = 50;
+    const almondHeight = 20;
 
     // Create a gradient for the almond shape
     const gradient = ctx.createLinearGradient(-almondWidth / 2, 0, almondWidth / 2, 0);
