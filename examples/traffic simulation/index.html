@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Only one meta charset is used; production servers should send "Content-Type: text/html; charset=utf-8" -->
+  <meta charset="utf-8" />
+  <!-- For IE/Edge compatibility -->
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <!-- Set the viewport for responsive scaling -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Development note: In production, set X-Content-Type-Options: nosniff via your server configuration -->
+  <meta http-equiv="X-Content-Type-Options" content="nosniff" />
+  <title>3D City Traffic Simulator</title>
+  <style>
+    /* Ensure consistent text scaling across browsers */
+    html {
+      text-size-adjust: 100%;
+    }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #87CEEB;
+    }
+    canvas {
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      font-family: sans-serif;
+      font-size: 14px;
+      border-radius: 5px;
+    }
+    /* Accessible button styling – visible text with title (aria-label optional when text is present) */
+    #toggleInfo {
+      margin-top: 10px;
+      cursor: pointer;
+      padding: 5px 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">
+    If vehicles and birds are missing, open the console (F12) and check for errors.
+    <br />
+    <!-- The button now includes visible text and a title for accessibility -->
+    <button id="toggleInfo" title="Toggle Information Display" aria-label="Toggle Info">Toggle Info</button>
+  </div>
+  <!-- Cache busting: appending ?v=128 to the Three.js URL ensures the latest version loads.
+       For full cache busting, use a build process or server configuration -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js?v=128"></script>
+  <script>
+    // Toggle info display – accessible interactive control
+    document.getElementById('toggleInfo').addEventListener('click', function () {
+      const infoDiv = document.getElementById('info');
+      infoDiv.style.display = (infoDiv.style.display === 'none') ? 'block' : 'none';
+    });
+
+    if (typeof THREE === 'undefined') {
+      document.body.innerHTML = 'Error: THREE.js failed to load';
+    } else {
+      // Scene setup
+      const scene = new THREE.Scene();
+
+      // Add a ground plane for visual context
+      const ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshStandardMaterial({ color: 0x006400 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      scene.add(ground);
+
+      // Setup camera
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+      camera.position.set(0, 20, 25);
+      camera.lookAt(0, 0, 0);
+
+      // Renderer setup
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setClearColor(0x87CEEB, 1);
+      document.body.appendChild(renderer.domElement);
+
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambientLight);
+      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+      directionalLight.position.set(10, 20, 15);
+      scene.add(directionalLight);
+
+      // City grid parameters
+      const gridSize = 6;
+      const blockSize = 3;
+      const roadWidth = 0.6;
+      const roadThickness = 0.1;
+      const halfGrid = gridSize * blockSize / 2;
+
+      // Materials and building colors
+      const roadMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
+      const buildingColors = [0xffa07a, 0xadd8e6, 0x90ee90, 0xffd700];
+
+      // Create city grid with roads and buildings
+      for (let x = 0; x < gridSize; x++) {
+        for (let z = 0; z < gridSize; z++) {
+          // Horizontal road
+          const hRoad = new THREE.Mesh(
+            new THREE.BoxGeometry(blockSize, roadThickness, roadWidth),
+            roadMaterial
+          );
+          hRoad.position.set(
+            x * blockSize - halfGrid + blockSize / 2,
+            roadThickness / 2,
+            z * blockSize - halfGrid
+          );
+          scene.add(hRoad);
+
+          // Vertical road
+          const vRoad = new THREE.Mesh(
+            new THREE.BoxGeometry(roadWidth, roadThickness, blockSize),
+            roadMaterial
+          );
+          vRoad.position.set(
+            x * blockSize - halfGrid,
+            roadThickness / 2,
+            z * blockSize - halfGrid + blockSize / 2
+          );
+          scene.add(vRoad);
+
+          // Checkerboard pattern: add buildings
+          if (x % 2 === z % 2) {
+            const buildingHeight = Math.random() * 4 + 2;
+            const building = new THREE.Mesh(
+              new THREE.BoxGeometry(blockSize - roadWidth, buildingHeight, blockSize - roadWidth),
+              new THREE.MeshStandardMaterial({
+                color: buildingColors[Math.floor(Math.random() * buildingColors.length)]
+              })
+            );
+            building.position.set(
+              x * blockSize - halfGrid + blockSize / 2,
+              buildingHeight / 2 + roadThickness / 2,
+              z * blockSize - halfGrid + blockSize / 2
+            );
+            scene.add(building);
+          }
+        }
+      }
+
+      // Add border roads to frame the city grid
+      const borderVRoad = new THREE.Mesh(
+        new THREE.BoxGeometry(roadWidth, roadThickness, gridSize * blockSize + blockSize),
+        roadMaterial
+      );
+      borderVRoad.position.set(halfGrid, roadThickness / 2, 0);
+      scene.add(borderVRoad);
+
+      const borderHRoad = new THREE.Mesh(
+        new THREE.BoxGeometry(gridSize * blockSize + blockSize, roadThickness, roadWidth),
+        roadMaterial
+      );
+      borderHRoad.position.set(0, roadThickness / 2, halfGrid);
+      scene.add(borderHRoad);
+
+      // Vehicle class: larger vehicles for visibility
+      class Vehicle {
+        constructor() {
+          this.mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.5, 0.8),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+          );
+          this.mesh.position.y = roadThickness / 2 + 0.25;
+          this.resetPosition();
+          this.turnCooldown = 0;
+          scene.add(this.mesh);
+          console.log("Vehicle created at", this.mesh.position);
+        }
+
+        resetPosition() {
+          const side = Math.floor(Math.random() * 4);
+          const offset = Math.random() * (gridSize * blockSize - 2) - (gridSize * blockSize / 2 - 1);
+          switch (side) {
+            case 0:
+              this.mesh.position.set(offset, 0, -halfGrid + roadWidth / 2);
+              this.direction = new THREE.Vector3(0, 0, 1);
+              break;
+            case 1:
+              this.mesh.position.set(halfGrid - roadWidth / 2, 0, offset);
+              this.direction = new THREE.Vector3(-1, 0, 0);
+              break;
+            case 2:
+              this.mesh.position.set(offset, 0, halfGrid - roadWidth / 2);
+              this.direction = new THREE.Vector3(0, 0, -1);
+              break;
+            case 3:
+              this.mesh.position.set(-halfGrid + roadWidth / 2, 0, offset);
+              this.direction = new THREE.Vector3(1, 0, 0);
+              break;
+          }
+          this.speed = Math.random() * 0.5 + 0.3;
+          this.turnCooldown = 0;
+        }
+
+        turnLeft() {
+          if (this.direction.x === 0 && this.direction.z === 1) return new THREE.Vector3(-1, 0, 0);
+          if (this.direction.x === 0 && this.direction.z === -1) return new THREE.Vector3(1, 0, 0);
+          if (this.direction.x === 1 && this.direction.z === 0) return new THREE.Vector3(0, 0, 1);
+          if (this.direction.x === -1 && this.direction.z === 0) return new THREE.Vector3(0, 0, -1);
+          return this.direction;
+        }
+
+        turnRight() {
+          if (this.direction.x === 0 && this.direction.z === 1) return new THREE.Vector3(1, 0, 0);
+          if (this.direction.x === 0 && this.direction.z === -1) return new THREE.Vector3(-1, 0, 0);
+          if (this.direction.x === 1 && this.direction.z === 0) return new THREE.Vector3(0, 0, -1);
+          if (this.direction.x === -1 && this.direction.z === 0) return new THREE.Vector3(0, 0, 1);
+          return this.direction;
+        }
+
+        update(delta) {
+          this.mesh.position.addScaledVector(this.direction, this.speed * delta);
+          const nearestX = Math.round((this.mesh.position.x + halfGrid) / blockSize) * blockSize - halfGrid;
+          const nearestZ = Math.round((this.mesh.position.z + halfGrid) / blockSize) * blockSize - halfGrid;
+          const dx = Math.abs(this.mesh.position.x - nearestX);
+          const dz = Math.abs(this.mesh.position.z - nearestZ);
+          const threshold = 0.2;
+          if (this.turnCooldown > 0) this.turnCooldown -= delta;
+          if (dx < threshold && dz < threshold && this.turnCooldown <= 0) {
+            const r = Math.random();
+            if (r < 0.1) {
+              this.direction = this.turnLeft();
+              this.turnCooldown = 0.5;
+            } else if (r < 0.2) {
+              this.direction = this.turnRight();
+              this.turnCooldown = 0.5;
+            }
+          }
+          const bounds = halfGrid + 1;
+          if (Math.abs(this.mesh.position.x) > bounds || Math.abs(this.mesh.position.z) > bounds) {
+            this.resetPosition();
+          }
+        }
+      }
+
+      // Create multiple vehicles
+      const vehicles = Array.from({ length: 50 }, () => new Vehicle());
+
+      // Bird class: scaled up for visibility with simple wrap-around behavior
+      class Bird {
+        constructor() {
+          this.mesh = new THREE.Mesh(
+            new THREE.ConeGeometry(0.3, 0.8, 3),
+            new THREE.MeshBasicMaterial({ color: 0xffff00 })
+          );
+          // Rotate so the cone points forward
+          this.mesh.rotation.x = Math.PI;
+          this.mesh.position.set(
+            (Math.random() - 0.5) * gridSize * blockSize,
+            10 + Math.random() * 5,
+            (Math.random() - 0.5) * gridSize * blockSize
+          );
+          const angle = Math.random() * Math.PI * 2;
+          this.direction = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+          this.speed = Math.random() * 0.5 + 0.5;
+          scene.add(this.mesh);
+          console.log("Bird created at", this.mesh.position);
+        }
+        update(delta) {
+          this.mesh.position.addScaledVector(this.direction, this.speed * delta);
+          const range = gridSize * blockSize / 2 + 10;
+          if (this.mesh.position.x > range) this.mesh.position.x = -range;
+          if (this.mesh.position.x < -range) this.mesh.position.x = range;
+          if (this.mesh.position.z > range) this.mesh.position.z = -range;
+          if (this.mesh.position.z < -range) this.mesh.position.z = range;
+        }
+      }
+
+      // Create multiple birds
+      const birds = Array.from({ length: 20 }, () => new Bird());
+
+      // Camera control object for interactive movement
+      const controls = {
+        rotation: new THREE.Vector2(),
+        zoom: 1.0,
+        update: function () {
+          const distance = 12 * this.zoom;
+          camera.position.x = distance * Math.sin(this.rotation.y) * Math.cos(this.rotation.x);
+          camera.position.z = distance * Math.cos(this.rotation.y) * Math.cos(this.rotation.x);
+          camera.position.y = 5 * this.zoom + 6 * Math.sin(this.rotation.x);
+          camera.lookAt(scene.position);
+        }
+      };
+
+      // Mouse controls for camera interaction
+      let isDragging = false;
+      document.addEventListener('mousedown', () => isDragging = true);
+      document.addEventListener('mouseup', () => isDragging = false);
+      document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        controls.rotation.y -= e.movementX * 0.01;
+        controls.rotation.x = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, controls.rotation.x + e.movementY * 0.01));
+      });
+
+      document.addEventListener('wheel', (e) => {
+        controls.zoom += e.deltaY * -0.001;
+        controls.zoom = Math.max(0.5, Math.min(2, controls.zoom));
+      });
+
+      // Main animation loop
+      let lastTime = 0;
+      function animate(time) {
+        requestAnimationFrame(animate);
+        const delta = (time - lastTime) / 1000;
+        lastTime = time;
+        vehicles.forEach(vehicle => vehicle.update(delta));
+        birds.forEach(bird => bird.update(delta));
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      animate();
+
+      // Handle window resize events
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+    }
+  </script>
+</body>
+</html>
