@@ -1,29 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Only one meta charset is used; production servers should send "Content-Type: text/html; charset=utf-8" -->
   <meta charset="utf-8" />
-  <!-- For IE/Edge compatibility -->
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <!-- Set the viewport for responsive scaling -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Development note: In production, set X-Content-Type-Options: nosniff via your server configuration -->
   <meta http-equiv="X-Content-Type-Options" content="nosniff" />
   <title>3D City Traffic Simulator</title>
   <style>
-    /* Ensure consistent text scaling across browsers */
-    html {
-      text-size-adjust: 100%;
-    }
-    body {
-      margin: 0;
-      overflow: hidden;
-      background-color: #87CEEB;
-    }
-    canvas {
-      display: block;
-    }
+    html { text-size-adjust: 100%; }
+    body { margin: 0; overflow: hidden; background-color: #87CEEB; }
+    canvas { display: block; }
     #info {
       position: absolute;
       top: 10px;
@@ -34,7 +20,6 @@
       font-size: 14px;
       border-radius: 5px;
     }
-    /* Accessible button styling – visible text with title (aria-label optional when text is present) */
     #toggleInfo {
       margin-top: 10px;
       cursor: pointer;
@@ -46,14 +31,10 @@
   <div id="info">
     If vehicles and birds are missing, open the console (F12) and check for errors.
     <br />
-    <!-- The button now includes visible text and a title for accessibility -->
     <button id="toggleInfo" title="Toggle Information Display" aria-label="Toggle Info">Toggle Info</button>
   </div>
-  <!-- Cache busting: appending ?v=128 to the Three.js URL ensures the latest version loads.
-       For full cache busting, use a build process or server configuration -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js?v=128"></script>
   <script>
-    // Toggle info display – accessible interactive control
     document.getElementById('toggleInfo').addEventListener('click', function () {
       const infoDiv = document.getElementById('info');
       infoDiv.style.display = (infoDiv.style.display === 'none') ? 'block' : 'none';
@@ -65,7 +46,7 @@
       // Scene setup
       const scene = new THREE.Scene();
 
-      // Add a ground plane for visual context
+      // Ground plane for visual context
       const ground = new THREE.Mesh(
         new THREE.PlaneGeometry(200, 200),
         new THREE.MeshStandardMaterial({ color: 0x006400 })
@@ -73,7 +54,7 @@
       ground.rotation.x = -Math.PI / 2;
       scene.add(ground);
 
-      // Setup camera
+      // Camera setup
       const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
       camera.position.set(0, 20, 25);
       camera.lookAt(0, 0, 0);
@@ -148,7 +129,7 @@
         }
       }
 
-      // Add border roads to frame the city grid
+      // Border roads to frame the city grid
       const borderVRoad = new THREE.Mesh(
         new THREE.BoxGeometry(roadWidth, roadThickness, gridSize * blockSize + blockSize),
         roadMaterial
@@ -170,6 +151,7 @@
             new THREE.BoxGeometry(1.5, 0.5, 0.8),
             new THREE.MeshBasicMaterial({ color: 0xff0000 })
           );
+          // Set initial height
           this.mesh.position.y = roadThickness / 2 + 0.25;
           this.resetPosition();
           this.turnCooldown = 0;
@@ -180,21 +162,22 @@
         resetPosition() {
           const side = Math.floor(Math.random() * 4);
           const offset = Math.random() * (gridSize * blockSize - 2) - (gridSize * blockSize / 2 - 1);
+          const yPos = roadThickness / 2 + 0.25;
           switch (side) {
             case 0:
-              this.mesh.position.set(offset, 0, -halfGrid + roadWidth / 2);
+              this.mesh.position.set(offset, yPos, -halfGrid + roadWidth / 2);
               this.direction = new THREE.Vector3(0, 0, 1);
               break;
             case 1:
-              this.mesh.position.set(halfGrid - roadWidth / 2, 0, offset);
+              this.mesh.position.set(halfGrid - roadWidth / 2, yPos, offset);
               this.direction = new THREE.Vector3(-1, 0, 0);
               break;
             case 2:
-              this.mesh.position.set(offset, 0, halfGrid - roadWidth / 2);
+              this.mesh.position.set(offset, yPos, halfGrid - roadWidth / 2);
               this.direction = new THREE.Vector3(0, 0, -1);
               break;
             case 3:
-              this.mesh.position.set(-halfGrid + roadWidth / 2, 0, offset);
+              this.mesh.position.set(-halfGrid + roadWidth / 2, yPos, offset);
               this.direction = new THREE.Vector3(1, 0, 0);
               break;
           }
@@ -279,7 +262,7 @@
       // Create multiple birds
       const birds = Array.from({ length: 20 }, () => new Bird());
 
-      // Camera control object for interactive movement
+      // Camera control for interactive movement
       const controls = {
         rotation: new THREE.Vector2(),
         zoom: 1.0,
