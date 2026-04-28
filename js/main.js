@@ -1,5 +1,5 @@
 // Set up canvas
-const canvas = document.getElementById('engine-canvas');
+const canvas = document.getElementById('project-canvas');
 const ctx = canvas.getContext('2d');
 
 // Resize canvas to fit the section

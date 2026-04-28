@@ -36,7 +36,7 @@ body {
 }
 
 /* Canvas for Interactive Display */
-#engine-canvas {
+#project-canvas {
     width: 100%;
     max-width: 200px;
     height: 200px;
