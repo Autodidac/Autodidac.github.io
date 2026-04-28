@@ -76,6 +76,19 @@ body {
     margin: 3rem 0;
 }
 
+.repo-link {
+    margin: 0.75rem 0 1rem;
+}
+
+.repo-link a {
+    color: #1e90ff;
+    text-decoration: none;
+}
+
+.repo-link a:hover {
+    text-decoration: underline;
+}
+
 .project-card {
     background-color: #333;
     border-radius: 8px;
