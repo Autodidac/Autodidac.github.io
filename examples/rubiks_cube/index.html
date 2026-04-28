@@ -1,0 +1,1945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solvable 3D Rubik's Cube</title>
+  <style>
+    :root {
+      --bg0: #080a0f;
+      --bg1: #101522;
+      --panel: rgba(20, 27, 43, 0.82);
+      --panel-strong: rgba(28, 38, 60, 0.92);
+      --line: rgba(255, 255, 255, 0.12);
+      --text: #edf3ff;
+      --muted: #9cabca;
+      --accent: #7dd3fc;
+      --cube-size: clamp(230px, min(38vw, 58vh), 380px);
+      --cubie-size: calc(var(--cube-size) / 3);
+      --sticker-size: calc(var(--cubie-size) * 0.84);
+      --half-cubie: calc(var(--cubie-size) / 2);
+      --gap-shadow: #05070c;
+      --shell-a: #05070c;
+      --shell-b: #101521;
+      --sticker-filter: none;
+      --sticker-extra-shadow: none;
+      --theme-glow-a: rgba(125, 211, 252, 0.22);
+      --theme-glow-b: rgba(167, 139, 250, 0.18);
+      --theme-glow-c: rgba(34, 197, 94, 0.10);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      overflow: hidden;
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at 15% 10%, var(--theme-glow-a), transparent 32%),
+        radial-gradient(circle at 85% 15%, var(--theme-glow-b), transparent 30%),
+        radial-gradient(circle at 50% 100%, var(--theme-glow-c), transparent 38%),
+        linear-gradient(145deg, var(--bg0), var(--bg1));
+    }
+
+    .app {
+      height: 100dvh;
+      min-height: 620px;
+      display: grid;
+      grid-template-columns: clamp(230px, 18vw, 310px) minmax(360px, 1fr) clamp(230px, 18vw, 310px);
+      grid-template-areas: "left stage right";
+      gap: 12px;
+      padding: 12px;
+      align-items: stretch;
+    }
+
+    .stage-card,
+    .controls {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+      border-radius: 28px;
+    }
+
+    .stage-card {
+      grid-area: stage;
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .stage-card::before {
+      content: "";
+      position: absolute;
+      inset: 8%;
+      background: radial-gradient(circle, rgba(125, 211, 252, 0.11), transparent 56%);
+      pointer-events: none;
+    }
+
+    .title {
+      position: absolute;
+      top: 14px;
+      left: 16px;
+      right: 16px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      z-index: 5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.0rem, 1.25vw, 1.45rem);
+      letter-spacing: -0.035em;
+    }
+
+    .subtitle {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+
+    .status {
+      min-width: 82px;
+      text-align: center;
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .status.solved {
+      color: #86efac;
+      border-color: rgba(134, 239, 172, 0.42);
+      background: rgba(34, 197, 94, 0.12);
+    }
+
+    .viewport {
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      perspective: 960px;
+      cursor: grab;
+      touch-action: none;
+      z-index: 2;
+    }
+
+    .viewport:active {
+      cursor: grabbing;
+    }
+
+    .cube {
+      position: relative;
+      width: var(--cube-size);
+      height: var(--cube-size);
+      transform-style: preserve-3d;
+      transform: scale(var(--zoom-scale, 0.92)) rotateY(var(--orbit-y, -36deg)) rotateX(var(--orbit-x, -28deg));
+      transition: transform 120ms linear;
+    }
+
+    .cube.exploded {
+      /* Keep this empty on purpose. CSS filters on a 3D parent can flatten
+         child depth and make exploded cubies read like 2D quads. */
+    }
+
+    .turn-layer {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+      transform: rotateX(0deg);
+      transition: transform 240ms cubic-bezier(0.2, 0.85, 0.2, 1);
+      will-change: transform;
+      transform-origin: 50% 50%;
+      pointer-events: none;
+    }
+
+    .cube.turning .cubie {
+      transition: none;
+    }
+
+    .cubie {
+      position: absolute;
+      left: calc(50% - var(--half-cubie));
+      top: calc(50% - var(--half-cubie));
+      width: var(--cubie-size);
+      height: var(--cubie-size);
+      transform-style: preserve-3d;
+      transform: translate3d(var(--tx), var(--ty), var(--tz));
+      transition: transform 90ms ease-out;
+    }
+
+    .cubie.moved .sticker {
+      box-shadow:
+        inset 0 2px 6px rgba(255, 255, 255, 0.38),
+        inset 0 -8px 14px rgba(0, 0, 0, 0.16),
+        0 0 0 1px rgba(255, 255, 255, 0.12),
+        0 0 16px rgba(125, 211, 252, 0.16);
+    }
+
+    .facelet {
+      position: absolute;
+      inset: 0;
+      width: var(--cubie-size);
+      height: var(--cubie-size);
+      display: grid;
+      place-items: center;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+      background: linear-gradient(160deg, rgba(14, 18, 24, 0.98), rgba(4, 5, 8, 0.99) 58%, rgba(1, 2, 4, 1));
+      border: 1px solid rgba(0, 0, 0, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -12px 18px rgba(0, 0, 0, 0.38);
+    }
+
+
+    .shell-face,
+    .sticker-face {
+      position: absolute;
+      inset: 0;
+      width: var(--cubie-size);
+      height: var(--cubie-size);
+      display: grid;
+      place-items: center;
+      backface-visibility: hidden;
+      transform-style: preserve-3d;
+    }
+
+    .shell-face {
+      background: linear-gradient(160deg, rgba(14, 18, 24, 0.98), rgba(4, 5, 8, 0.99) 58%, rgba(1, 2, 4, 1));
+      border: 1px solid rgba(0, 0, 0, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -12px 18px rgba(0, 0, 0, 0.38);
+    }
+
+    .sticker-face {
+      pointer-events: none;
+      background: transparent;
+    }
+
+    .sticker {
+      width: var(--sticker-size);
+      height: var(--sticker-size);
+      border-radius: 13%;
+      background: var(--color);
+      border: max(2px, calc(var(--cubie-size) * 0.025)) solid rgba(0, 0, 0, 0.72);
+      filter: var(--sticker-filter);
+      box-shadow:
+        inset 0 2px 6px rgba(255, 255, 255, 0.32),
+        inset 0 -8px 14px rgba(0, 0, 0, 0.18),
+        0 0 0 1px rgba(255, 255, 255, 0.08),
+        var(--sticker-extra-shadow);
+      display: grid;
+      place-items: center;
+      line-height: 1;
+      user-select: none;
+    }
+
+
+    .facelet.inner-face,
+    .shell-face.inner-face {
+      background: linear-gradient(160deg, rgba(12, 14, 18, 0.98), rgba(2, 3, 5, 1));
+      border-color: rgba(0, 0, 0, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), inset 0 -10px 16px rgba(0, 0, 0, 0.44);
+    }
+
+    .inner-panel {
+      position: relative;
+      width: calc(var(--cubie-size) * 0.8);
+      height: calc(var(--cubie-size) * 0.8);
+      border-radius: 14%;
+      background: linear-gradient(160deg, rgba(13, 16, 20, 0.98), rgba(3, 4, 6, 1));
+      border: 1px solid rgba(0, 0, 0, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -10px 15px rgba(0,0,0,0.42);
+      overflow: hidden;
+    }
+
+    .inner-panel::before {
+      content: "";
+      position: absolute;
+      left: 8%;
+      right: 8%;
+      top: 8%;
+      height: 16%;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0));
+    }
+
+    .inner-panel::after {
+      content: none;
+    }
+
+    .core-assembly {
+      --center-size: calc(var(--cubie-size) * 0.48);
+      --center-half: calc(var(--center-size) / 2);
+      --arm-thickness: calc(var(--cubie-size) * 0.24);
+      --arm-half-thickness: calc(var(--arm-thickness) / 2);
+      --arm-length: calc(var(--cubie-size) * 0.42);
+      --arm-half: calc(var(--arm-length) / 2);
+      --arm-gap-near: 0px;
+      --arm-gap-far: 0px;
+      --arm-face-overlap: 0.8px;
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      transform-style: preserve-3d;
+      pointer-events: none;
+      opacity: var(--core-opacity, 0);
+      transition: opacity 80ms ease-out;
+    }
+
+    .core-center,
+    .core-arm,
+    .core-center-body,
+    .core-arm-body {
+      transform-style: preserve-3d;
+    }
+
+    .core-center,
+    .core-arm {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+    }
+
+    .core-center {
+      transform: translate(-50%, -50%);
+    }
+
+    .core-center-body {
+      position: relative;
+      width: var(--center-size);
+      height: var(--center-size);
+    }
+
+    .core-center-face,
+    .core-arm-face {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      backface-visibility: hidden;
+      border: 1px solid rgba(0, 0, 0, 0.98);
+      transform-style: preserve-3d;
+    }
+
+    .core-center-face {
+      width: var(--center-size);
+      height: var(--center-size);
+      background: linear-gradient(160deg, rgba(234, 231, 218, 0.98), rgba(211, 206, 191, 0.99) 55%, rgba(181, 176, 162, 1));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), inset 0 -8px 12px rgba(0,0,0,0.18);
+    }
+
+    .core-center-face.front { transform: translate(-50%, -50%) translateZ(var(--center-half)); }
+    .core-center-face.back { transform: translate(-50%, -50%) rotateY(180deg) translateZ(var(--center-half)); }
+    .core-center-face.right { transform: translate(-50%, -50%) rotateY(90deg) translateZ(var(--center-half)); }
+    .core-center-face.left { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(var(--center-half)); }
+    .core-center-face.up { transform: translate(-50%, -50%) rotateX(90deg) translateZ(var(--center-half)); }
+    .core-center-face.down { transform: translate(-50%, -50%) rotateX(-90deg) translateZ(var(--center-half)); }
+
+    .core-arm-body {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: var(--arm-thickness);
+      height: var(--arm-length);
+      transform: translate(-50%, -50%);
+      transform-style: preserve-3d;
+    }
+
+    .core-arm.axis-y.pos { transform: translate(-50%, -50%) translateY(calc(-1 * (var(--center-half) + var(--arm-gap-near) + var(--arm-half)))); }
+    .core-arm.axis-y.neg { transform: translate(-50%, -50%) translateY(calc(var(--center-half) + var(--arm-gap-near) + var(--arm-half))); }
+    .core-arm.axis-x.pos { transform: translate(-50%, -50%) rotateZ(90deg) translateY(calc(-1 * (var(--center-half) + var(--arm-gap-near) + var(--arm-half)))); }
+    .core-arm.axis-x.neg { transform: translate(-50%, -50%) rotateZ(90deg) translateY(calc(var(--center-half) + var(--arm-gap-near) + var(--arm-half))); }
+    .core-arm.axis-z.pos { transform: translate(-50%, -50%) rotateX(90deg) translateY(calc(-1 * (var(--center-half) + var(--arm-gap-near) + var(--arm-half)))); }
+    .core-arm.axis-z.neg { transform: translate(-50%, -50%) rotateX(90deg) translateY(calc(var(--center-half) + var(--arm-gap-near) + var(--arm-half))); }
+
+    .core-arm-face {
+      box-sizing: border-box;
+      background: linear-gradient(160deg, rgba(18, 21, 27, 0.98), rgba(3, 4, 7, 1));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), inset 0 -8px 12px rgba(0,0,0,0.38);
+    }
+
+    .core-arm-face.front,
+    .core-arm-face.back,
+    .core-arm-face.right,
+    .core-arm-face.left {
+      width: calc(var(--arm-thickness) + var(--arm-face-overlap));
+      height: calc(var(--arm-length) + var(--arm-face-overlap));
+    }
+
+    .core-arm-face.front { transform: translate(-50%, -50%) translateZ(var(--arm-half-thickness)); }
+    .core-arm-face.back { transform: translate(-50%, -50%) rotateY(180deg) translateZ(var(--arm-half-thickness)); }
+    .core-arm-face.right { transform: translate(-50%, -50%) rotateY(90deg) translateZ(var(--arm-half-thickness)); }
+    .core-arm-face.left { transform: translate(-50%, -50%) rotateY(-90deg) translateZ(var(--arm-half-thickness)); }
+
+    body.debug-cube .sticker {
+      color: rgba(5, 7, 12, 0.86);
+      font-size: calc(var(--cubie-size) * 0.18);
+      font-weight: 950;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.42);
+    }
+
+    .side-label {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%) translateZ(4px);
+      padding: 4px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.32);
+      background: rgba(4, 8, 16, 0.74);
+      color: #edf3ff;
+      font-size: clamp(0.54rem, calc(var(--cubie-size) * 0.11), 0.78rem);
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      text-shadow: 0 1px 1px rgba(0,0,0,0.65);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .facelet.front,
+    .shell-face.front { transform: translateZ(var(--half-cubie)); }
+    .facelet.back,
+    .shell-face.back { transform: rotateY(180deg) translateZ(var(--half-cubie)); }
+    .facelet.right,
+    .shell-face.right { transform: rotateY(90deg) translateZ(var(--half-cubie)); }
+    .facelet.left,
+    .shell-face.left { transform: rotateY(-90deg) translateZ(var(--half-cubie)); }
+    .facelet.up,
+    .shell-face.up { transform: rotateX(90deg) translateZ(var(--half-cubie)); }
+    .facelet.down,
+    .shell-face.down { transform: rotateX(-90deg) translateZ(var(--half-cubie)); }
+
+    .sticker-face.front { transform: translateZ(calc(var(--half-cubie) + 1.2px)); }
+    .sticker-face.back { transform: rotateY(180deg) translateZ(calc(var(--half-cubie) + 1.2px)); }
+    .sticker-face.right { transform: rotateY(90deg) translateZ(calc(var(--half-cubie) + 1.2px)); }
+    .sticker-face.left { transform: rotateY(-90deg) translateZ(calc(var(--half-cubie) + 1.2px)); }
+    .sticker-face.up { transform: rotateX(90deg) translateZ(calc(var(--half-cubie) + 1.2px)); }
+    .sticker-face.down { transform: rotateX(-90deg) translateZ(calc(var(--half-cubie) + 1.2px)); }
+
+    .shadow-floor {
+      position: absolute;
+      width: min(42vw, 440px);
+      height: 66px;
+      bottom: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: radial-gradient(ellipse, rgba(0, 0, 0, 0.46), transparent 68%);
+      filter: blur(7px);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .controls {
+      height: calc(100dvh - 24px);
+      min-height: 0;
+      padding: 10px;
+      overflow: auto;
+      scrollbar-width: thin;
+    }
+
+    .controls-left { grid-area: left; }
+    .controls-right { grid-area: right; }
+
+    .controls h2 {
+      margin: 0 0 4px;
+      font-size: 0.95rem;
+      letter-spacing: -0.02em;
+    }
+
+    .help {
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.35;
+      margin: 0 0 10px;
+    }
+
+    .section {
+      padding: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.045);
+      border-radius: 16px;
+      margin-bottom: 9px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-weight: 850;
+    }
+
+    .move-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .wide-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      min-height: 34px;
+      border-radius: 11px;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform 110ms ease, border-color 110ms ease, background 110ms ease;
+      user-select: none;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(125, 211, 252, 0.55);
+      background: rgba(125, 211, 252, 0.13);
+    }
+
+    button:active {
+      transform: translateY(0px) scale(0.985);
+    }
+
+    button.primary {
+      border-color: rgba(125, 211, 252, 0.56);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(167, 139, 250, 0.16));
+    }
+
+    button.danger {
+      border-color: rgba(248, 113, 113, 0.45);
+      background: rgba(248, 113, 113, 0.11);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .readout {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.76rem;
+      line-height: 1.3;
+    }
+
+    .kbd {
+      display: inline-grid;
+      place-items: center;
+      min-width: 1.7em;
+      height: 1.7em;
+      padding: 0 0.45em;
+      margin: 0 0.1em;
+      border: 1px solid var(--line);
+      border-bottom-color: rgba(255, 255, 255, 0.25);
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 0.78rem;
+      font-weight: 800;
+    }
+
+    .history {
+      min-height: 42px;
+      max-height: 96px;
+      overflow: auto;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.14);
+      color: #dce8ff;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.74rem;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+
+    .debug-readout {
+      min-height: 36px;
+      margin-top: 7px;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0, 0, 0, 0.14);
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.69rem;
+      line-height: 1.25;
+    }
+
+
+    .mode-switch {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    .mode-switch button.active {
+      border-color: rgba(125, 211, 252, 0.64);
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.28), rgba(167, 139, 250, 0.18));
+      box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.18) inset;
+    }
+
+    .field-label {
+      display: block;
+      margin: 9px 0 6px;
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      font-weight: 850;
+    }
+
+    .design-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .control-select,
+    .quick-input-wrap input {
+      width: 100%;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: rgba(0, 0, 0, 0.16);
+      color: var(--text);
+      padding: 0 10px;
+      outline: none;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+
+    .control-select:focus,
+    .quick-input-wrap input:focus {
+      border-color: rgba(125, 211, 252, 0.60);
+    }
+
+
+    .slider-wrap {
+      display: grid;
+      gap: 10px;
+    }
+
+    .explode-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .control-range {
+      width: 100%;
+      accent-color: #7dd3fc;
+      cursor: pointer;
+    }
+
+    .compact-help {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      line-height: 1.4;
+    }
+
+    .move-grid-rich {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .move-btn {
+      min-height: 44px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      text-align: left;
+    }
+
+    .move-btn .move-main {
+      color: var(--text);
+      font-size: 0.82rem;
+      font-weight: 900;
+      letter-spacing: -0.015em;
+    }
+
+    .move-btn .move-sub {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.64rem;
+      font-weight: 800;
+    }
+
+    .quick-input-wrap {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+    }
+
+    .help-copy {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.14);
+      padding: 9px;
+      color: #dce8ff;
+      font-size: 0.76rem;
+      line-height: 1.32;
+    }
+
+    .help-copy p {
+      margin: 0 0 7px;
+    }
+
+    .help-copy p:last-child {
+      margin-bottom: 0;
+    }
+
+    .help-copy ul {
+      margin: 6px 0 7px 16px;
+      padding: 0;
+    }
+
+    .help-copy li {
+      margin: 3px 0;
+    }
+
+    body[data-mode="kid"] .move-grid-rich {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    body[data-mode="kid"] .move-btn {
+      min-height: 48px;
+      border-radius: 13px;
+    }
+
+    body[data-mode="kid"] .move-btn .move-main {
+      font-size: 0.88rem;
+    }
+
+    body[data-mode="kid"] #proOnlySection {
+      display: none;
+    }
+
+    body[data-mode="pro"] #kidModeHint {
+      display: none;
+    }
+
+    body[data-site-theme="dark"] {
+      --bg0: #080a0f;
+      --bg1: #101522;
+      --panel: rgba(20, 27, 43, 0.82);
+      --theme-glow-a: rgba(125, 211, 252, 0.20);
+      --theme-glow-b: rgba(167, 139, 250, 0.14);
+      --theme-glow-c: rgba(34, 197, 94, 0.08);
+    }
+
+    body[data-site-theme="clean"] {
+      --bg0: #0d1117;
+      --bg1: #151b24;
+      --panel: rgba(24, 31, 43, 0.84);
+      --theme-glow-a: rgba(180, 205, 235, 0.12);
+      --theme-glow-b: rgba(120, 150, 190, 0.10);
+      --theme-glow-c: rgba(80, 115, 145, 0.08);
+    }
+
+    body[data-site-theme="cosmic"] {
+      --bg0: #03040c;
+      --bg1: #10152c;
+      --panel: rgba(17, 21, 46, 0.84);
+      --theme-glow-a: rgba(75, 105, 255, 0.22);
+      --theme-glow-b: rgba(255, 70, 190, 0.14);
+      --theme-glow-c: rgba(95, 255, 235, 0.09);
+    }
+
+    body[data-cube-design="classic"] {
+      --shell-a: #05070c;
+      --shell-b: #101521;
+      --sticker-filter: none;
+      --sticker-extra-shadow: none;
+    }
+
+    body[data-cube-design="neon"] {
+      --shell-a: #04111f;
+      --shell-b: #0d2137;
+      --sticker-filter: saturate(1.35) brightness(1.08);
+      --sticker-extra-shadow: 0 0 18px rgba(45, 212, 255, 0.22);
+    }
+
+    body[data-cube-design="candy"] {
+      --shell-a: #251434;
+      --shell-b: #44245f;
+      --sticker-filter: saturate(1.20) brightness(1.07);
+      --sticker-extra-shadow: 0 0 16px rgba(255, 175, 220, 0.22);
+    }
+
+    body[data-cube-design="crystal"] {
+      --shell-a: #142235;
+      --shell-b: #2d435f;
+      --sticker-filter: saturate(0.94) brightness(1.15);
+      --sticker-extra-shadow: 0 0 18px rgba(190, 235, 255, 0.18);
+    }
+
+    body[data-cube-design="lava"] {
+      --shell-a: #16060a;
+      --shell-b: #35121b;
+      --sticker-filter: saturate(1.28) contrast(1.07);
+      --sticker-extra-shadow: 0 0 18px rgba(255, 115, 40, 0.20);
+    }
+
+    body[data-cube-design="graphite"] {
+      --shell-a: #050505;
+      --shell-b: #1b1b1d;
+      --sticker-filter: contrast(1.08) saturate(0.95);
+      --sticker-extra-shadow: 0 0 10px rgba(255, 255, 255, 0.08);
+    }
+
+
+    body[data-cube-design="neon"] .facelet.inner-face,
+    body[data-cube-design="neon"] .shell-face.inner-face,
+    body[data-cube-design="neon"] .inner-panel {
+      background: linear-gradient(160deg, rgba(8, 20, 30, 0.98), rgba(2, 10, 18, 1));
+      box-shadow: inset 0 1px 0 rgba(140, 225, 255, 0.08), inset 0 -10px 16px rgba(0, 0, 0, 0.40);
+    }
+
+    body[data-cube-design="crystal"] .facelet.inner-face,
+    body[data-cube-design="crystal"] .shell-face.inner-face,
+    body[data-cube-design="crystal"] .inner-panel {
+      background: linear-gradient(160deg, rgba(26, 34, 42, 0.98), rgba(10, 14, 20, 1));
+      box-shadow: inset 0 1px 0 rgba(210, 240, 255, 0.06), inset 0 -10px 16px rgba(0, 0, 0, 0.34);
+    }
+
+    body[data-cube-design="lava"] .facelet.inner-face,
+    body[data-cube-design="lava"] .shell-face.inner-face,
+    body[data-cube-design="lava"] .inner-panel {
+      background: linear-gradient(160deg, rgba(36, 14, 12, 0.98), rgba(10, 3, 4, 1));
+      box-shadow: inset 0 1px 0 rgba(255, 170, 140, 0.06), inset 0 -10px 16px rgba(0, 0, 0, 0.40);
+    }
+
+    body[data-cube-design="graphite"] .facelet.inner-face,
+    body[data-cube-design="graphite"] .shell-face.inner-face,
+    body[data-cube-design="graphite"] .inner-panel {
+      background: linear-gradient(160deg, rgba(12, 12, 13, 0.98), rgba(3, 3, 4, 1));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 -10px 16px rgba(0, 0, 0, 0.45);
+    }
+
+    body[data-cube-design="candy"] .facelet.inner-face,
+    body[data-cube-design="candy"] .shell-face.inner-face {
+      background: linear-gradient(160deg, rgba(54, 34, 24, 0.98), rgba(18, 10, 7, 1));
+      border-color: rgba(12, 5, 2, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255, 222, 195, 0.06), inset 0 -10px 16px rgba(0, 0, 0, 0.42);
+    }
+
+    body[data-cube-design="candy"] .inner-panel {
+      background: linear-gradient(155deg, rgba(58, 36, 24, 0.98), rgba(21, 12, 8, 1));
+      border-color: rgba(14, 7, 3, 0.98);
+      box-shadow: inset 0 1px 0 rgba(255, 228, 202, 0.06), inset 0 -10px 15px rgba(0, 0, 0, 0.38);
+    }
+
+    body[data-cube-design="candy"] .inner-panel::before {
+      background: linear-gradient(180deg, rgba(255, 216, 184, 0.08), rgba(255, 216, 184, 0));
+    }
+
+    body[data-cube-design="candy"] .core-arm-face {
+      background: linear-gradient(160deg, rgba(64, 40, 28, 0.98), rgba(22, 12, 8, 1));
+      box-shadow: inset 0 1px 0 rgba(255, 226, 196, 0.05), inset 0 -8px 12px rgba(0, 0, 0, 0.34);
+    }
+
+    body[data-cube-design="candy"] .core-center-face {
+      background: linear-gradient(160deg, rgba(246, 223, 202, 0.98), rgba(228, 196, 173, 0.99) 55%, rgba(196, 156, 133, 1));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), inset 0 -8px 12px rgba(0,0,0,0.18);
+    }
+
+    @media (min-width: 981px) and (max-height: 760px) {
+      :root { --cube-size: clamp(220px, min(34vw, 52vh), 330px); }
+      .app { min-height: 560px; }
+      .subtitle { display: none; }
+      .section { padding: 8px; margin-bottom: 7px; }
+      .move-btn { min-height: 39px; }
+      body[data-mode="kid"] .move-btn { min-height: 42px; }
+      .help-copy { max-height: 150px; overflow: auto; }
+    }
+
+    @media (max-width: 980px) {
+      body { overflow: auto; }
+
+      .app {
+        height: auto;
+        min-height: 100dvh;
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "stage"
+          "left"
+          "right";
+        padding: 10px;
+      }
+
+      .stage-card { min-height: 58dvh; }
+      .controls { height: auto; max-height: none; }
+      :root { --cube-size: clamp(220px, 62vmin, 360px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <aside class="controls controls-left">
+      <h2>Controls</h2>
+      <p id="kidModeHint" class="help">Starts scrambled in Kid Mode. Use simple side names, or switch to Pro Mode for standard cube notation.</p>
+
+      <section class="section">
+        <div class="section-title">Play mode</div>
+        <div class="mode-switch">
+          <button id="kidModeBtn" type="button" class="active">Kid Mode</button>
+          <button id="proModeBtn" type="button">Pro Mode</button>
+        </div>
+
+        <div class="design-grid">
+          <div>
+            <label class="field-label" for="themeSelect">Website theme</label>
+            <select id="themeSelect" class="control-select">
+              <option value="dark">Dark UI</option>
+              <option value="clean">Clean UI</option>
+              <option value="cosmic">Cosmic UI</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="cubeDesignSelect">Cube design</label>
+            <select id="cubeDesignSelect" class="control-select">
+              <option value="classic">Classic Cube</option>
+              <option value="neon">Neon Glow</option>
+              <option value="candy">Candy Pop</option>
+              <option value="crystal">Crystal</option>
+              <option value="lava">Lava Tech</option>
+              <option value="graphite">Graphite</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div id="turnsTitle" class="section-title">Turn a side</div>
+        <div id="moveGrid" class="move-grid move-grid-rich"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Puzzle</div>
+        <div class="wide-grid">
+          <button id="scrambleBtn" class="primary">Scramble</button>
+          <button id="resetBtn" class="danger">Reset</button>
+          <button id="undoBtn">Undo</button>
+          <button id="reverseBtn">Reverse solve</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Explode view <span id="explodePercentLabel">0%</span></div>
+        <div class="slider-wrap">
+          <div class="explode-row">
+            <span>Closed</span>
+            <span>Open</span>
+          </div>
+          <input id="explodeSlider" class="control-range" type="range" min="0" max="100" step="1" value="0" />
+          <div class="wide-grid">
+            <button id="explodeBtn" type="button">Explode</button>
+            <button id="collapseBtn" type="button">Collapse</button>
+          </div>
+        </div>
+        <div class="compact-help">Pull the cube apart to reveal the inner faces of the cubies and a simplified core inspired by the classic spider mechanism.</div>
+      </section>
+    </aside>
+
+    <section class="stage-card">
+      <div class="title">
+        <div>
+          <h1>Solvable 3D Rubik's Cube</h1>
+          <div class="subtitle">Drag to orbit. Mouse wheel zooms. Use buttons or keyboard to turn faces.</div>
+        </div>
+        <div id="status" class="status solved">Solved</div>
+      </div>
+
+      <div id="viewport" class="viewport" aria-label="3D Rubik's Cube viewport">
+        <div id="cube" class="cube" role="img" aria-label="Interactive 3D Rubik's Cube"></div>
+      </div>
+      <div class="shadow-floor"></div>
+    </section>
+
+    <aside class="controls controls-right">
+      <section class="section">
+        <div class="section-title">View</div>
+        <div class="move-grid">
+          <button data-view="front">Front</button>
+          <button data-view="top">Top</button>
+          <button data-view="right">Right</button>
+          <button data-view="iso_left">Iso L</button>
+          <button data-view="iso_right">Iso R</button>
+          <button data-view="iso_back">Iso Back</button>
+          <button data-view="back">Back</button>
+          <button data-view="bottom">Bottom</button>
+        </div>
+      </section>
+
+      <section id="proOnlySection" class="section">
+        <div class="section-title">Quick input</div>
+        <div class="quick-input-wrap">
+          <input id="moveInput" type="text" placeholder="Example: R U R' U'" autocomplete="off" spellcheck="false" />
+          <button id="runInputBtn" type="button">Run</button>
+        </div>
+      </section>
+
+      <section class="section">
+        <div id="helpTitle" class="section-title">How turns work</div>
+        <div id="helpText" class="help-copy"></div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Keyboard</div>
+        <div class="readout">
+          <div><span class="kbd">U</span><span class="kbd">D</span><span class="kbd">L</span><span class="kbd">R</span><span class="kbd">F</span><span class="kbd">B</span> turn faces.</div>
+          <div><span class="kbd">Shift</span> + face = reverse/pro prime move.</div>
+          <div><span class="kbd">S</span> scramble, <span class="kbd">Z</span> undo, <span class="kbd">X</span> explode, <span class="kbd">Esc</span> reset.</div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Visual debug</div>
+        <div class="wide-grid">
+          <button id="debugBtn" type="button">Side labels: off</button>
+          <button id="stepUBtn" type="button">Step Top</button>
+        </div>
+        <div id="debugReadout" class="debug-readout">Turn on labels to show current visible side names like Top, Front, and Bottom.</div>
+      </section>
+
+      <section class="section">
+        <div class="section-title">Move history <span id="moveCount">0</span></div>
+        <div id="history" class="history">No moves yet.</div>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    "use strict";
+
+    const TURN_MS = 240;
+
+    const COLORS = Object.freeze({
+      U: "#f8fafc",
+      D: "#fde047",
+      F: "#22c55e",
+      B: "#2563eb",
+      R: "#ef4444",
+      L: "#f97316"
+    });
+
+    const NORMAL_TO_FACE = Object.freeze({
+      "0,1,0": "U",
+      "0,-1,0": "D",
+      "0,0,1": "F",
+      "0,0,-1": "B",
+      "1,0,0": "R",
+      "-1,0,0": "L"
+    });
+
+    const NORMAL_TO_CLASS = Object.freeze({
+      "0,1,0": "up",
+      "0,-1,0": "down",
+      "0,0,1": "front",
+      "0,0,-1": "back",
+      "1,0,0": "right",
+      "-1,0,0": "left"
+    });
+
+    const MOVE_DEFS = Object.freeze({
+      U: { axis: "y", layer: 1, dir: -1 },
+      D: { axis: "y", layer: -1, dir: 1 },
+      R: { axis: "x", layer: 1, dir: -1 },
+      L: { axis: "x", layer: -1, dir: 1 },
+      F: { axis: "z", layer: 1, dir: -1 },
+      B: { axis: "z", layer: -1, dir: 1 }
+    });
+
+    const VIEW_PRESETS = Object.freeze({
+      iso: { x: -28, y: -36 },
+      iso_left: { x: -28, y: 36 },
+      iso_right: { x: -28, y: -36 },
+      iso_back: { x: -28, y: 144 },
+      front: { x: 0, y: 0 },
+      back: { x: 0, y: 180 },
+      right: { x: 0, y: -90 },
+      // Avoid exact +/-90 degree pitch. CSS 3D gets pole/gimbal-like behavior there.
+      top: { x: -82, y: 0 },
+      bottom: { x: 82, y: 0 }
+    });
+
+    const FACE_INFO = Object.freeze({
+      U: { kid: "Top", pro: "U", full: "Up" },
+      D: { kid: "Bottom", pro: "D", full: "Down" },
+      L: { kid: "Left", pro: "L", full: "Left" },
+      R: { kid: "Right", pro: "R", full: "Right" },
+      F: { kid: "Front", pro: "F", full: "Front" },
+      B: { kid: "Back", pro: "B", full: "Back" }
+    });
+
+    const MOVE_ORDER = Object.freeze(["U", "D", "L", "R", "F", "B"]);
+    const MOVE_SUFFIXES = Object.freeze(["", "'", "2"]);
+    const START_SCRAMBLE_LENGTH = 18;
+
+    const NORMAL_TO_SIDE_NAME = Object.freeze({
+      "0,1,0": "Top",
+      "0,-1,0": "Bottom",
+      "0,0,1": "Front",
+      "0,0,-1": "Back",
+      "1,0,0": "Right",
+      "-1,0,0": "Left"
+    });
+
+    const CUBE_FACE_CLASSES = Object.freeze(["front", "back", "right", "left", "up", "down"]);
+    const CLASS_TO_NORMAL_KEY = Object.freeze({
+      front: "0,0,1",
+      back: "0,0,-1",
+      right: "1,0,0",
+      left: "-1,0,0",
+      up: "0,1,0",
+      down: "0,-1,0"
+    });
+
+    const MODE_HELP = Object.freeze({
+      kid: `
+        <p><strong>The cube has 6 sides:</strong></p>
+        <ul>
+          <li><strong>Top</strong></li>
+          <li><strong>Bottom</strong></li>
+          <li><strong>Left</strong></li>
+          <li><strong>Right</strong></li>
+          <li><strong>Front</strong></li>
+          <li><strong>Back</strong></li>
+        </ul>
+        <p>Tap a button to turn that side.</p>
+        <p><strong>Reverse</strong> turns the same side the other way. <strong>Twice</strong> turns it two times.</p>
+      `,
+      pro: `
+        <p><strong>Moves follow standard cube notation.</strong></p>
+        <ul>
+          <li><strong>U</strong> = Up</li>
+          <li><strong>D</strong> = Down</li>
+          <li><strong>L</strong> = Left</li>
+          <li><strong>R</strong> = Right</li>
+          <li><strong>F</strong> = Front</li>
+          <li><strong>B</strong> = Back</li>
+        </ul>
+        <p>A prime mark (<strong>'</strong>) turns the opposite direction. A <strong>2</strong> turns the same side twice.</p>
+      `
+    });
+
+    const cubeEl = document.getElementById("cube");
+    const viewportEl = document.getElementById("viewport");
+    const moveGridEl = document.getElementById("moveGrid");
+    const statusEl = document.getElementById("status");
+    const historyEl = document.getElementById("history");
+    const moveCountEl = document.getElementById("moveCount");
+    const scrambleBtn = document.getElementById("scrambleBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const undoBtn = document.getElementById("undoBtn");
+    const reverseBtn = document.getElementById("reverseBtn");
+    const debugBtn = document.getElementById("debugBtn");
+    const stepUBtn = document.getElementById("stepUBtn");
+    const debugReadout = document.getElementById("debugReadout");
+    const kidModeBtn = document.getElementById("kidModeBtn");
+    const proModeBtn = document.getElementById("proModeBtn");
+    const themeSelect = document.getElementById("themeSelect");
+    const cubeDesignSelect = document.getElementById("cubeDesignSelect");
+    const explodeSlider = document.getElementById("explodeSlider");
+    const explodeBtn = document.getElementById("explodeBtn");
+    const collapseBtn = document.getElementById("collapseBtn");
+    const explodePercentLabel = document.getElementById("explodePercentLabel");
+    const turnsTitle = document.getElementById("turnsTitle");
+    const helpTitle = document.getElementById("helpTitle");
+    const helpText = document.getElementById("helpText");
+    const runInputBtn = document.getElementById("runInputBtn");
+    const moveInput = document.getElementById("moveInput");
+
+    let cubies = createSolvedCubies();
+    let moveHistory = [];
+    let lastMovedIds = new Set();
+    let orbit = { ...VIEW_PRESETS.iso };
+    let zoomScale = 0.92;
+    let drag = null;
+    let isTurning = false;
+    let debugEnabled = false;
+    let lastMoveDebug = "Turn on labels to show current visible side names like Top, Front, and Bottom.";
+    let uiMode = "kid";
+    let uiSiteTheme = "dark";
+    let uiCubeDesign = "classic";
+    let explodeAmount = 0;
+
+    setSiteTheme("dark");
+    setCubeDesign("classic");
+    setMode("kid");
+    setZoom(zoomScale);
+    setOrbit(orbit.x, orbit.y);
+    startScrambledPuzzle();
+
+    function createSolvedCubies() {
+      const result = [];
+      let id = 0;
+
+      for (let x = -1; x <= 1; ++x) {
+        for (let y = -1; y <= 1; ++y) {
+          for (let z = -1; z <= 1; ++z) {
+            const stickers = [];
+            const candidates = [
+              [x, 0, 0],
+              [0, y, 0],
+              [0, 0, z]
+            ];
+
+            for (const normal of candidates) {
+              if (normal[0] === 0 && normal[1] === 0 && normal[2] === 0) continue;
+              const key = normal.join(",");
+              const face = NORMAL_TO_FACE[key];
+              if (!face) continue;
+              stickers.push({ normal, color: COLORS[face], solvedFace: face });
+            }
+
+            result.push({ id: id++, pos: [x, y, z], stickers });
+          }
+        }
+      }
+
+      return result;
+    }
+
+    function createMoveButtons() {
+      const fragment = document.createDocumentFragment();
+
+      for (const face of MOVE_ORDER) {
+        for (const suffix of MOVE_SUFFIXES) {
+          const notation = `${face}${suffix}`;
+          const label = moveLabel(face, suffix);
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "move-btn";
+          button.dataset.move = notation;
+          button.innerHTML = `
+            <span class="move-main">${label.main}</span>
+            <span class="move-sub">${label.sub}</span>
+          `;
+          button.addEventListener("click", () => applyNotation(notation, true));
+          fragment.appendChild(button);
+        }
+      }
+
+      moveGridEl.replaceChildren(fragment);
+    }
+
+    function moveLabel(face, suffix) {
+      const info = FACE_INFO[face];
+
+      if (uiMode === "pro") {
+        if (suffix === "'") return { main: `${info.pro}'`, sub: "opposite turn" };
+        if (suffix === "2") return { main: `${info.pro}2`, sub: "turn twice" };
+        return { main: info.pro, sub: info.full };
+      }
+
+      if (suffix === "'") return { main: `${info.kid} Reverse`, sub: `${info.pro}'` };
+      if (suffix === "2") return { main: `${info.kid} Twice`, sub: `${info.pro}2` };
+      return { main: info.kid, sub: info.pro };
+    }
+
+    function setMode(mode) {
+      uiMode = mode === "pro" ? "pro" : "kid";
+      document.body.dataset.mode = uiMode;
+
+      kidModeBtn.classList.toggle("active", uiMode === "kid");
+      proModeBtn.classList.toggle("active", uiMode === "pro");
+      turnsTitle.textContent = uiMode === "kid" ? "Turn a side" : "Face turns";
+      helpTitle.textContent = uiMode === "kid" ? "How turns work" : "Cube notation";
+      helpText.innerHTML = MODE_HELP[uiMode];
+
+      createMoveButtons();
+    }
+
+    function setSiteTheme(theme) {
+      uiSiteTheme = theme || "dark";
+      document.body.dataset.siteTheme = uiSiteTheme;
+      themeSelect.value = uiSiteTheme;
+    }
+
+    function setCubeDesign(design) {
+      uiCubeDesign = design || "classic";
+      document.body.dataset.cubeDesign = uiCubeDesign;
+      cubeDesignSelect.value = uiCubeDesign;
+    }
+
+    function faceClassForVector(vector) {
+      return NORMAL_TO_CLASS[vector.join(",")] || null;
+    }
+
+    function setExplodeAmount(value) {
+      const next = Math.max(0, Math.min(1, Number(value) || 0));
+      explodeAmount = next;
+      if (explodeSlider) explodeSlider.value = String(Math.round(next * 100));
+      if (explodePercentLabel) explodePercentLabel.textContent = `${Math.round(next * 100)}%`;
+      render();
+    }
+
+    function buildCoreAssembly() {
+      const core = document.createElement("div");
+      core.className = "core-assembly";
+
+      const cubeSize = getCubeSize();
+      const step = cubeSize / 3;
+      const visualExplode = Math.pow(explodeAmount, 0.35);
+      const centerSize = step * 0.48;
+      const armThickness = step * 0.24;
+      const gapNear = 0;
+      const gapFar = 0;
+      const halfCubie = step / 2;
+      const layerGap = step * 1.62 * visualExplode;
+      const reachToInnerFace = step + layerGap - halfCubie;
+      const armLength = Math.max(8, reachToInnerFace - centerSize / 2 - gapNear - gapFar);
+
+      core.style.setProperty("--core-opacity", String(Math.min(1, explodeAmount / 0.01)));
+      core.style.setProperty("--center-size", `${centerSize}px`);
+      core.style.setProperty("--arm-thickness", `${armThickness}px`);
+      core.style.setProperty("--arm-length", `${armLength}px`);
+      core.style.setProperty("--arm-gap-near", `${gapNear}px`);
+      core.style.setProperty("--arm-gap-far", `${gapFar}px`);
+
+      const center = document.createElement("div");
+      center.className = "core-center";
+      const centerBody = document.createElement("div");
+      centerBody.className = "core-center-body";
+      for (const faceClass of CUBE_FACE_CLASSES) {
+        const face = document.createElement("div");
+        face.className = `core-center-face ${faceClass}`;
+        centerBody.appendChild(face);
+      }
+      center.appendChild(centerBody);
+      core.appendChild(center);
+
+      const armDefs = [
+        ["x", "pos"], ["x", "neg"],
+        ["y", "pos"], ["y", "neg"],
+        ["z", "pos"], ["z", "neg"]
+      ];
+      const armFaces = ["front", "back", "right", "left"];
+
+      for (const [axis, sign] of armDefs) {
+        const arm = document.createElement("div");
+        arm.className = `core-arm axis-${axis} ${sign}`;
+
+        const body = document.createElement("div");
+        body.className = "core-arm-body";
+        for (const faceClass of armFaces) {
+          const face = document.createElement("div");
+          face.className = `core-arm-face ${faceClass}`;
+          body.appendChild(face);
+        }
+
+        arm.appendChild(body);
+        core.appendChild(arm);
+      }
+
+      return core;
+    }
+
+    function render() {
+      const fragment = document.createDocumentFragment();
+      const cubeSize = getCubeSize();
+      const step = cubeSize / 3;
+      const visualExplode = Math.pow(explodeAmount, 0.35);
+      const layerGap = step * 1.62 * visualExplode;
+      const showInternals = explodeAmount > 0.001;
+
+      cubeEl.classList.toggle("exploded", showInternals);
+
+      if (showInternals) {
+        fragment.appendChild(buildCoreAssembly());
+      }
+
+      const ordered = [...cubies].sort((a, b) => {
+        const az = a.pos[2], bz = b.pos[2];
+        const ay = a.pos[1], by = b.pos[1];
+        const ax = a.pos[0], bx = b.pos[0];
+        return az - bz || ay - by || ax - bx;
+      });
+
+      for (const cubie of ordered) {
+        if (showInternals && cubie.pos[0] === 0 && cubie.pos[1] === 0 && cubie.pos[2] === 0) {
+          continue;
+        }
+
+        const [x, y, z] = cubie.pos;
+        const cubieEl = document.createElement("div");
+        cubieEl.className = "cubie" + (lastMovedIds.has(cubie.id) ? " moved" : "");
+        cubieEl.dataset.cubieId = String(cubie.id);
+        cubieEl.dataset.pos = cubie.pos.join(",");
+        cubieEl.style.setProperty("--tx", `${x * step + x * layerGap}px`);
+        cubieEl.style.setProperty("--ty", `${-y * step - y * layerGap}px`);
+        cubieEl.style.setProperty("--tz", `${z * step + z * layerGap}px`);
+
+        const stickersByClass = new Map();
+        for (const sticker of cubie.stickers) {
+          const key = sticker.normal.join(",");
+          const className = NORMAL_TO_CLASS[key];
+          if (className) stickersByClass.set(className, { sticker, key });
+        }
+
+        if (showInternals) {
+          for (const className of CUBE_FACE_CLASSES) {
+            const entry = stickersByClass.get(className);
+            const shellFace = document.createElement("div");
+            shellFace.className = `shell-face ${entry ? "" : "inner-face "}${className}`;
+
+            if (!entry) {
+              const panel = document.createElement("div");
+              panel.className = "inner-panel";
+              panel.title = `Hidden inner side: ${NORMAL_TO_SIDE_NAME[CLASS_TO_NORMAL_KEY[className]] ?? className}`;
+              shellFace.appendChild(panel);
+            }
+            cubieEl.appendChild(shellFace);
+
+            if (entry) {
+              const stickerFace = document.createElement("div");
+              stickerFace.className = `sticker-face ${className}`;
+
+              const stickerEl = document.createElement("div");
+              stickerEl.className = "sticker";
+              stickerEl.style.setProperty("--color", entry.sticker.color);
+              if (debugEnabled) {
+                stickerEl.title = `Cubie ${cubie.id}: visible side ${NORMAL_TO_SIDE_NAME[entry.key] ?? "Unknown"}, position ${cubie.pos.join(",")}`;
+              }
+              stickerFace.appendChild(stickerEl);
+
+              if (debugEnabled) {
+                const label = document.createElement("div");
+                label.className = "side-label";
+                label.textContent = NORMAL_TO_SIDE_NAME[entry.key] ?? "Unknown";
+                stickerFace.appendChild(label);
+              }
+
+              cubieEl.appendChild(stickerFace);
+            }
+          }
+        } else {
+          for (const [className, entry] of stickersByClass) {
+            const facelet = document.createElement("div");
+            facelet.className = `facelet ${className}`;
+
+            const stickerEl = document.createElement("div");
+            stickerEl.className = "sticker";
+            stickerEl.style.setProperty("--color", entry.sticker.color);
+            if (debugEnabled) {
+              stickerEl.title = `Cubie ${cubie.id}: visible side ${NORMAL_TO_SIDE_NAME[entry.key] ?? "Unknown"}, position ${cubie.pos.join(",")}`;
+            }
+            facelet.appendChild(stickerEl);
+
+            if (debugEnabled) {
+              const label = document.createElement("div");
+              label.className = "side-label";
+              label.textContent = NORMAL_TO_SIDE_NAME[entry.key] ?? "Unknown";
+              facelet.appendChild(label);
+            }
+
+            cubieEl.appendChild(facelet);
+          }
+        }
+
+        fragment.appendChild(cubieEl);
+      }
+
+      cubeEl.replaceChildren(fragment);
+      updateReadouts();
+    }
+
+    function getCubeSize() {
+      const isNarrow = window.innerWidth <= 980;
+      const byWidth = window.innerWidth * (isNarrow ? 0.62 : 0.38);
+      const byHeight = window.innerHeight * 0.58;
+      return Math.max(220, Math.min(byWidth, byHeight, isNarrow ? 360 : 380));
+    }
+
+    async function applyNotation(notation, record) {
+      if (isTurning) return;
+
+      const parsed = parseNotation(notation);
+      if (!parsed) return;
+
+      isTurning = true;
+      cubeEl.classList.add("turning");
+      updateReadouts();
+
+      for (let i = 0; i < parsed.turns; ++i) {
+        await animateQuarterTurn(parsed.face, parsed.prime);
+      }
+
+      cubeEl.classList.remove("turning");
+      isTurning = false;
+
+      if (record) {
+        moveHistory.push(notation);
+      }
+
+      render();
+    }
+
+    function parseNotation(notation) {
+      const face = notation[0]?.toUpperCase();
+      if (!(face in MOVE_DEFS)) return null;
+
+      const suffix = notation.slice(1);
+      if (suffix !== "" && suffix !== "'" && suffix !== "2") return null;
+
+      return {
+        face,
+        suffix,
+        turns: suffix === "2" ? 2 : 1,
+        prime: suffix === "'"
+      };
+    }
+
+    function applyNotationInstant(notation) {
+      const parsed = parseNotation(notation);
+      if (!parsed) return;
+
+      for (let i = 0; i < parsed.turns; ++i) {
+        applyMove(parsed.face, parsed.prime);
+      }
+    }
+
+    function cssAngleForStateRotation(axis, angle) {
+      // Internal cube space uses +Y as up.
+      // CSS 3D uses +Y downward, so X/Z rotations visually invert.
+      // Without this conversion, the layer animation turns one way while the
+      // committed sticker state lands the other way, making colors appear wrong.
+      return axis === "y" ? angle : -angle;
+    }
+
+    function axisTransform(axis, angle) {
+      const cssAngle = cssAngleForStateRotation(axis, angle);
+      if (axis === "x") return `rotateX(${cssAngle}deg)`;
+      if (axis === "y") return `rotateY(${cssAngle}deg)`;
+      return `rotateZ(${cssAngle}deg)`;
+    }
+
+    async function animateQuarterTurn(face, prime) {
+      const def = MOVE_DEFS[face];
+      if (!def) return;
+
+      const dir = prime ? -def.dir : def.dir;
+      const selected = cubies.filter((cubie) => axisValue(cubie.pos, def.axis) === def.layer);
+      const selectedIds = new Set(selected.map((cubie) => cubie.id));
+      const selectedEls = [...cubeEl.querySelectorAll(".cubie")].filter((el) => selectedIds.has(Number(el.dataset.cubieId)));
+
+      const stateAngle = dir * 90;
+      const cssAngle = cssAngleForStateRotation(def.axis, stateAngle);
+      const moveName = FACE_INFO[face]?.kid ?? face;
+      lastMoveDebug = `Last move: ${moveName}${prime ? " Reverse" : ""} — ${def.axis.toUpperCase()} axis, layer ${def.layer}, state ${stateAngle > 0 ? "+90" : "-90"}°, CSS ${cssAngle > 0 ? "+90" : "-90"}°, cubies ${selectedIds.size}`;
+      lastMovedIds = selectedIds;
+      updateReadouts();
+
+      if (selectedEls.length !== selectedIds.size) {
+        applyMove(face, prime);
+        render();
+        return;
+      }
+
+      const layerEl = document.createElement("div");
+      layerEl.className = "turn-layer";
+      cubeEl.appendChild(layerEl);
+
+      for (const el of selectedEls) {
+        layerEl.appendChild(el);
+      }
+
+      layerEl.getBoundingClientRect();
+
+      await new Promise((resolve) => {
+        let finished = false;
+        const finish = () => {
+          if (finished) return;
+          finished = true;
+          resolve();
+        };
+
+        layerEl.addEventListener("transitionend", finish, { once: true });
+        requestAnimationFrame(() => {
+          layerEl.style.transform = axisTransform(def.axis, stateAngle);
+        });
+        window.setTimeout(finish, TURN_MS + 90);
+      });
+
+      applyMove(face, prime);
+      render();
+    }
+
+    function applyMove(face, prime) {
+      const def = MOVE_DEFS[face];
+      if (!def) return;
+
+      const dir = prime ? -def.dir : def.dir;
+      lastMovedIds = new Set();
+
+      cubies = cubies.map((cubie) => {
+        if (axisValue(cubie.pos, def.axis) !== def.layer) return cubie;
+
+        lastMovedIds.add(cubie.id);
+
+        return {
+          ...cubie,
+          pos: rotateVector(cubie.pos, def.axis, dir),
+          stickers: cubie.stickers.map((sticker) => ({
+            ...sticker,
+            normal: rotateVector(sticker.normal, def.axis, dir)
+          }))
+        };
+      });
+    }
+
+    function axisValue(vector, axis) {
+      if (axis === "x") return vector[0];
+      if (axis === "y") return vector[1];
+      return vector[2];
+    }
+
+    function rotateVector(vector, axis, dir) {
+      const [x, y, z] = vector;
+
+      if (axis === "x") {
+        return dir > 0 ? [x, -z, y] : [x, z, -y];
+      }
+
+      if (axis === "y") {
+        return dir > 0 ? [z, y, -x] : [-z, y, x];
+      }
+
+      return dir > 0 ? [-y, x, z] : [y, -x, z];
+    }
+
+    function runInputSequence(raw) {
+      const parts = raw
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+      const valid = parts.filter((part) => parseNotation(part));
+      if (valid.length !== parts.length) {
+        lastMoveDebug = "Input ignored: use moves like R U R' U2.";
+        render();
+        return;
+      }
+
+      for (const notation of valid) {
+        applyNotationInstant(notation);
+        moveHistory.push(notation);
+      }
+
+      lastMovedIds = new Set();
+      lastMoveDebug = `Ran ${valid.length} input move${valid.length === 1 ? "" : "s"}.`;
+      render();
+    }
+
+    function inverseNotation(notation) {
+      if (notation.endsWith("2")) return notation;
+      if (notation.endsWith("'")) return notation[0];
+      return `${notation}'`;
+    }
+
+    function undoLastMove() {
+      if (isTurning) return;
+
+      const notation = moveHistory.pop();
+      if (!notation) {
+        render();
+        return;
+      }
+
+      const inverse = inverseNotation(notation);
+      applyNotationWithoutHistory(inverse);
+    }
+
+    function applyNotationWithoutHistory(notation) {
+      applyNotationInstant(notation);
+      render();
+    }
+
+    function reverseSolve() {
+      if (isTurning) return;
+
+      const reversed = [...moveHistory].reverse().map(inverseNotation);
+      moveHistory = [];
+
+      for (const notation of reversed) {
+        applyNotationInstant(notation);
+      }
+
+      lastMovedIds = new Set();
+      lastMoveDebug = `Reverse solved ${reversed.length} moves.`;
+      render();
+    }
+
+    function generateScrambleMoves(length) {
+      const faces = Object.keys(MOVE_DEFS);
+      const suffixes = ["", "'", "2"];
+      let previousFace = "";
+      const scrambleMoves = [];
+
+      for (let i = 0; i < length; ++i) {
+        let face = faces[Math.floor(Math.random() * faces.length)];
+        while (face === previousFace) {
+          face = faces[Math.floor(Math.random() * faces.length)];
+        }
+        previousFace = face;
+        scrambleMoves.push(face + suffixes[Math.floor(Math.random() * suffixes.length)]);
+      }
+
+      return scrambleMoves;
+    }
+
+    function applyScrambleMoves(scrambleMoves) {
+      for (const notation of scrambleMoves) {
+        applyNotationInstant(notation);
+        moveHistory.push(notation);
+      }
+    }
+
+    function startScrambledPuzzle() {
+      cubies = createSolvedCubies();
+      moveHistory = [];
+      lastMovedIds = new Set();
+      const scrambleMoves = generateScrambleMoves(START_SCRAMBLE_LENGTH);
+      applyScrambleMoves(scrambleMoves);
+      lastMoveDebug = `Started scrambled with ${scrambleMoves.length} moves.`;
+      render();
+    }
+
+    function scramble(length = 25) {
+      if (isTurning) return;
+
+      const scrambleMoves = generateScrambleMoves(length);
+      applyScrambleMoves(scrambleMoves);
+
+      lastMovedIds = new Set();
+      lastMoveDebug = `Scrambled with ${scrambleMoves.length} moves.`;
+      render();
+    }
+
+    function resetCube() {
+      if (isTurning) return;
+
+      cubies = createSolvedCubies();
+      moveHistory = [];
+      lastMovedIds = new Set();
+      lastMoveDebug = "Reset to solved state. Press Scramble for a new puzzle.";
+      render();
+    }
+
+    function isSolved() {
+      for (const [normalKey, face] of Object.entries(NORMAL_TO_FACE)) {
+        const expected = COLORS[face];
+        const visibleStickers = [];
+
+        for (const cubie of cubies) {
+          const sticker = cubie.stickers.find((entry) => entry.normal.join(",") === normalKey);
+          if (sticker) visibleStickers.push(sticker.color);
+        }
+
+        if (visibleStickers.length !== 9) return false;
+        if (visibleStickers.some((color) => color !== expected)) return false;
+      }
+
+      return true;
+    }
+
+    function updateReadouts() {
+      const solved = isSolved();
+      statusEl.textContent = solved ? "Solved" : "Mixed";
+      statusEl.classList.toggle("solved", solved);
+
+      moveCountEl.textContent = String(moveHistory.length);
+      historyEl.textContent = moveHistory.length ? moveHistory.join(" ") : "No moves yet.";
+      undoBtn.disabled = isTurning || moveHistory.length === 0;
+      reverseBtn.disabled = isTurning || moveHistory.length === 0;
+      scrambleBtn.disabled = isTurning;
+      resetBtn.disabled = isTurning;
+      if (explodePercentLabel) explodePercentLabel.textContent = `${Math.round(explodeAmount * 100)}%`;
+      if (explodeSlider && explodeSlider.value !== String(Math.round(explodeAmount * 100))) {
+        explodeSlider.value = String(Math.round(explodeAmount * 100));
+      }
+      debugBtn.textContent = debugEnabled ? "Side labels: on" : "Side labels: off";
+      debugReadout.textContent = isTurning ? `${lastMoveDebug} — animating` : `${lastMoveDebug} | side labels ${debugEnabled ? "on" : "off"} | explode ${Math.round(explodeAmount * 100)}%`;
+    }
+
+    function clampPitch(value) {
+      return Math.max(-82, Math.min(82, value));
+    }
+
+    function normalizeYaw(value) {
+      let yaw = value % 360;
+      if (yaw > 180) yaw -= 360;
+      if (yaw < -180) yaw += 360;
+      return yaw;
+    }
+
+    function setZoom(scale) {
+      zoomScale = Math.max(0.62, Math.min(1.32, scale));
+      cubeEl.style.setProperty("--zoom-scale", String(zoomScale));
+    }
+
+    function setOrbit(x, y) {
+      orbit = { x: clampPitch(x), y: normalizeYaw(y) };
+      cubeEl.style.setProperty("--orbit-x", `${orbit.x}deg`);
+      cubeEl.style.setProperty("--orbit-y", `${orbit.y}deg`);
+      cubeEl.style.setProperty("--zoom-scale", String(zoomScale));
+    }
+
+    viewportEl.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      viewportEl.setPointerCapture(event.pointerId);
+      drag = {
+        pointerId: event.pointerId,
+        lastX: event.clientX,
+        lastY: event.clientY
+      };
+    });
+
+    viewportEl.addEventListener("pointermove", (event) => {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      const dx = event.clientX - drag.lastX;
+      const dy = event.clientY - drag.lastY;
+      drag.lastX = event.clientX;
+      drag.lastY = event.clientY;
+
+      const basis = Math.max(240, Math.min(viewportEl.clientWidth || 0, viewportEl.clientHeight || 0, 720));
+      const sensitivity = (180 / basis) * Math.max(0.55, zoomScale);
+      const nextX = orbit.x - dy * sensitivity;
+      const nextY = orbit.y + dx * sensitivity;
+      setOrbit(nextX, nextY);
+    });
+
+    viewportEl.addEventListener("pointerup", clearDrag);
+    viewportEl.addEventListener("pointercancel", clearDrag);
+    viewportEl.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const direction = Math.sign(event.deltaY);
+      const step = direction === 0 ? 0 : 0.04;
+      setZoom(zoomScale - direction * step);
+    }, { passive: false });
+
+    function clearDrag(event) {
+      if (drag && event.pointerId === drag.pointerId) {
+        drag = null;
+      }
+    }
+
+    kidModeBtn.addEventListener("click", () => setMode("kid"));
+    proModeBtn.addEventListener("click", () => setMode("pro"));
+    themeSelect.addEventListener("change", (event) => setSiteTheme(event.target.value));
+    cubeDesignSelect.addEventListener("change", (event) => setCubeDesign(event.target.value));
+    explodeSlider.addEventListener("input", (event) => {
+      setExplodeAmount(Number(event.target.value) / 100);
+    });
+    explodeBtn.addEventListener("click", () => { setExplodeAmount(1); setOrbit(-24, -34); });
+    collapseBtn.addEventListener("click", () => setExplodeAmount(0));
+
+    runInputBtn.addEventListener("click", () => {
+      if (!moveInput.value.trim()) return;
+      runInputSequence(moveInput.value);
+      moveInput.value = "";
+    });
+
+    moveInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      runInputBtn.click();
+    });
+
+    debugBtn.addEventListener("click", () => {
+      debugEnabled = !debugEnabled;
+      document.body.classList.toggle("debug-cube", debugEnabled);
+      render();
+    });
+
+    stepUBtn.addEventListener("click", () => applyNotation("U", true));
+
+    scrambleBtn.addEventListener("click", () => scramble());
+    resetBtn.addEventListener("click", resetCube);
+    undoBtn.addEventListener("click", undoLastMove);
+    reverseBtn.addEventListener("click", reverseSolve);
+
+    document.querySelectorAll("[data-view]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const preset = VIEW_PRESETS[button.dataset.view];
+        if (preset) setOrbit(preset.x, preset.y);
+      });
+    });
+
+    window.addEventListener("keydown", (event) => {
+      const key = event.key.toUpperCase();
+
+      if (key in MOVE_DEFS) {
+        event.preventDefault();
+        applyNotation(key + (event.shiftKey ? "'" : ""), true);
+        return;
+      }
+
+      if (key === "S") {
+        event.preventDefault();
+        scramble();
+        return;
+      }
+
+      if (key === "Z") {
+        event.preventDefault();
+        undoLastMove();
+        return;
+      }
+
+      if (key === "X") {
+        event.preventDefault();
+        setExplodeAmount(explodeAmount >= 0.5 ? 0 : 1);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        resetCube();
+      }
+    });
+
+    window.addEventListener("resize", render);
+  </script>
+</body>
+</html>
